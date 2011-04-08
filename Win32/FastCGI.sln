@@ -1,47 +1,23 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 10.00
-# Visual Studio 2008
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "authorizer", "authorizer.vcproj", "{239D906A-62A8-469E-92DF-56905B8E69A1}"
-	ProjectSection(ProjectDependencies) = postProject
-		{F162F443-9841-498C-8476-42034E8A60CE} = {F162F443-9841-498C-8476-42034E8A60CE}
-	EndProjectSection
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual C++ Express 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "authorizer", "authorizer.vcxproj", "{239D906A-62A8-469E-92DF-56905B8E69A1}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cgifcgi", "cgifcgi.vcproj", "{C344735B-630F-4D1F-BB09-251C462ADA64}"
-	ProjectSection(ProjectDependencies) = postProject
-		{F162F443-9841-498C-8476-42034E8A60CE} = {F162F443-9841-498C-8476-42034E8A60CE}
-	EndProjectSection
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cgifcgi", "cgifcgi.vcxproj", "{C344735B-630F-4D1F-BB09-251C462ADA64}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "echo", "echo.vcproj", "{55EAF1D1-E623-44E9-AE25-A7C170BE2D32}"
-	ProjectSection(ProjectDependencies) = postProject
-		{F162F443-9841-498C-8476-42034E8A60CE} = {F162F443-9841-498C-8476-42034E8A60CE}
-	EndProjectSection
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "echo", "echo.vcxproj", "{55EAF1D1-E623-44E9-AE25-A7C170BE2D32}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "echo_cpp", "echo-cpp.vcproj", "{66A92564-9D0C-485E-BF22-8CE643C37E6C}"
-	ProjectSection(ProjectDependencies) = postProject
-		{F162F443-9841-498C-8476-42034E8A60CE} = {F162F443-9841-498C-8476-42034E8A60CE}
-	EndProjectSection
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "echo_cpp", "echo-cpp.vcxproj", "{66A92564-9D0C-485E-BF22-8CE643C37E6C}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "echox", "echox.vcproj", "{81E2800A-94C3-403C-BD72-D544CA6E19D1}"
-	ProjectSection(ProjectDependencies) = postProject
-		{F162F443-9841-498C-8476-42034E8A60CE} = {F162F443-9841-498C-8476-42034E8A60CE}
-	EndProjectSection
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "echox", "echox.vcxproj", "{81E2800A-94C3-403C-BD72-D544CA6E19D1}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libfcgi", "libfcgi.vcproj", "{F162F443-9841-498C-8476-42034E8A60CE}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libfcgi", "libfcgi.vcxproj", "{F162F443-9841-498C-8476-42034E8A60CE}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "logdump", "logdump.vcproj", "{9A4F793B-B2C7-428A-BB41-10D9DA3E1741}"
-	ProjectSection(ProjectDependencies) = postProject
-		{F162F443-9841-498C-8476-42034E8A60CE} = {F162F443-9841-498C-8476-42034E8A60CE}
-	EndProjectSection
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "logdump", "logdump.vcxproj", "{9A4F793B-B2C7-428A-BB41-10D9DA3E1741}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "size", "size.vcproj", "{9B8472A2-3CB4-449B-AEB4-DD185BD2494E}"
-	ProjectSection(ProjectDependencies) = postProject
-		{F162F443-9841-498C-8476-42034E8A60CE} = {F162F443-9841-498C-8476-42034E8A60CE}
-	EndProjectSection
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "size", "size.vcxproj", "{9B8472A2-3CB4-449B-AEB4-DD185BD2494E}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "threaded", "threaded.vcproj", "{0133C5DE-15A5-44FB-8457-964980A6C3F6}"
-	ProjectSection(ProjectDependencies) = postProject
-		{F162F443-9841-498C-8476-42034E8A60CE} = {F162F443-9841-498C-8476-42034E8A60CE}
-	EndProjectSection
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "threaded", "threaded.vcxproj", "{0133C5DE-15A5-44FB-8457-964980A6C3F6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
