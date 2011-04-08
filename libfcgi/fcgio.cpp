@@ -22,8 +22,14 @@
 #define DLLAPI  __declspec(dllexport)
 #endif
 
+#ifndef _WIN32
+#include <stdint.h>
 #include <limits.h>
+#endif
+
+#include <assert.h>
 #include "fcgio.h"
+#include "fcgimisc.h"
 
 using std::streambuf;
 using std::istream;
@@ -63,12 +69,13 @@ int fcgi_streambuf::overflow(int c)
 {
     if (this->bufsize)
     {
-        int plen = pptr() - pbase();
+        intptr_t plen = pptr() - pbase();
 
         if (plen) 
         {
-            if (FCGX_PutStr(pbase(), plen, this->fcgx) != plen) return EOF;
-            pbump(-plen);
+            ASSERT(0 <= plen && plen <= INT_MAX);
+            if (FCGX_PutStr(pbase(), (int)plen, this->fcgx) != plen) return EOF;
+            pbump((int)(-plen));
         }
     }
 
@@ -103,7 +110,8 @@ int fcgi_streambuf::underflow()
     {
         if (in_avail() == 0)
         {
-            int glen = FCGX_GetStr(eback(), this->bufsize, this->fcgx);
+            ASSERT(0 <= this->bufsize && this->bufsize <= INT_MAX);
+            int glen = FCGX_GetStr(eback(), (int)(this->bufsize), this->fcgx);
             if (glen <= 0) return EOF;
 
             setg(eback(), eback(), eback() + glen);

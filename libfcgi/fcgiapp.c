@@ -24,6 +24,10 @@ static const char rcsid[] = "$Id: fcgiapp.c,v 1.34 2001/12/12 22:54:10 robs Exp 
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#ifndef _WIN32
+#include <stdint.h>
+#include <limits.h>
+#endif
 
 #include "fcgi_config.h"
 
@@ -63,6 +67,12 @@ static const char rcsid[] = "$Id: fcgiapp.c,v 1.34 2001/12/12 22:54:10 robs Exp 
 #define LONG_DOUBLE long double
 #endif
 
+#ifdef _WIN64
+#define ABS(a) _abs64(a)
+#else
+#define ABS(a) abs(a)
+#endif
+
 /*
  * Globals
  */
@@ -85,7 +95,7 @@ static void *Malloc(size_t size)
 
 static char *StringCopy(char *str)
 {
-    int strLen = strlen(str);
+    size_t strLen = strlen(str);
     char *newString = (char *)Malloc(strLen + 1);
     memcpy(newString, str, strLen);
     newString[strLen] = '\000';
@@ -142,7 +152,7 @@ int FCGX_GetChar(FCGX_Stream *stream)
  */
 int FCGX_GetStr(char *str, int n, FCGX_Stream *stream)
 {
-    int m, bytesMoved;
+    intptr_t m, bytesMoved;
 
     if (stream->isClosed || ! stream->isReader || n <= 0) {
         return 0;
@@ -166,15 +176,21 @@ int FCGX_GetStr(char *str, int n, FCGX_Stream *stream)
             memcpy(str, stream->rdNext, m);
             bytesMoved += m;
             stream->rdNext += m;
-            if(bytesMoved == n)
-                return bytesMoved;
+            if(bytesMoved == n) {
+                ASSERT(INT_MIN <= bytesMoved && bytesMoved <= INT_MAX);
+                return (int)bytesMoved;
+            }
             str += m;
         }
-        if(stream->isClosed || !stream->isReader)
-            return bytesMoved;
+        if(stream->isClosed || !stream->isReader) {
+            ASSERT(INT_MIN <= bytesMoved && bytesMoved <= INT_MAX);
+            return (int)bytesMoved;
+        }
         stream->fillBuffProc(stream);
-        if (stream->isClosed)
-            return bytesMoved;
+        if (stream->isClosed) {
+            ASSERT(INT_MIN <= bytesMoved && bytesMoved <= INT_MAX);
+            return (int)bytesMoved;
+        }
 
         stream->stopUnget = stream->rdNext;
     }
@@ -309,7 +325,7 @@ int FCGX_PutChar(int c, FCGX_Stream *stream)
  */
 int FCGX_PutStr(const char *str, int n, FCGX_Stream *stream)
 {
-    int m, bytesMoved;
+    intptr_t m, bytesMoved;
 
     /*
      * Fast path: room for n bytes in the buffer
@@ -330,8 +346,10 @@ int FCGX_PutStr(const char *str, int n, FCGX_Stream *stream)
             memcpy(stream->wrNext, str, m);
             bytesMoved += m;
             stream->wrNext += m;
-            if(bytesMoved == n)
-                return bytesMoved;
+            if(bytesMoved == n) {
+                ASSERT(INT_MIN <= bytesMoved && bytesMoved <= INT_MAX);
+                return (int)bytesMoved;
+            }
             str += m;
 	}
         if(stream->isClosed || stream->isReader)
@@ -355,7 +373,9 @@ int FCGX_PutStr(const char *str, int n, FCGX_Stream *stream)
  */
 int FCGX_PutS(const char *str, FCGX_Stream *stream)
 {
-    return FCGX_PutStr(str, strlen(str), stream);
+    size_t sz = strlen(str);
+    ASSERT(sz <= INT_MAX);
+    return FCGX_PutStr(str, (int)sz, stream);
 }
 
 /*
@@ -406,15 +426,17 @@ int FCGX_FPrintF(FCGX_Stream *stream, const char *format, ...)
     /*
      * Max size of a format specifier is 1 + 5 + 7 + 7 + 2 + 1 + slop
      */
-static void CopyAndAdvance(char **destPtr, char **srcPtr, int n);
+static void CopyAndAdvance(char **destPtr, char **srcPtr, intptr_t n);
 
 int FCGX_VFPrintF(FCGX_Stream *stream, const char *format, va_list arg)
 {
     char *f, *fStop, *percentPtr, *p, *fmtBuffPtr, *buffPtr;
-    int op, performedOp, sizeModifier, buffCount = 0, buffLen, specifierLength;
-    int fastPath, n, auxBuffLen = 0, buffReqd, minWidth, precision, exp;
+    intptr_t op, performedOp, sizeModifier, buffCount = 0, buffLen;
+    intptr_t fastPath, n, auxBuffLen = 0, minWidth, precision;
+    int exp;
+    intptr_t specifierLength, buffReqd;
     char *auxBuffPtr = NULL;
-    int streamCount = 0;
+    intptr_t streamCount = 0;
     char fmtBuff[FMT_BUFFLEN];
     char buff[PRINTF_BUFFLEN];
 
@@ -439,9 +461,11 @@ int FCGX_VFPrintF(FCGX_Stream *stream, const char *format, va_list arg)
         percentPtr = (char *)memchr(f, '%', fStop - f);
         if(percentPtr == NULL) percentPtr = fStop;
         if(percentPtr != f) {
-            if(FCGX_PutStr(f, percentPtr - f, stream) < 0)
+            intptr_t ptrDiff = percentPtr - f;
+            ASSERT(0 <= ptrDiff && ptrDiff < INT_MAX);
+            if(FCGX_PutStr(f, (int)ptrDiff, stream) < 0)
                 goto ErrorReturn;
-            streamCount += percentPtr - f;
+            streamCount += (int)ptrDiff;
             f = percentPtr;
             if(f == fStop) break;
 	}
@@ -506,14 +530,14 @@ int FCGX_VFPrintF(FCGX_Stream *stream, const char *format, va_list arg)
                 if(n == 0) {
                     if(*p == '*') {
                         minWidth = va_arg(arg, int);
-                        if(abs(minWidth) > 999999)
+                        if(ABS(minWidth) > 999999)
                             goto ErrorReturn;
 			/*
 			 * The following use of strlen rather than the
 			 * value returned from sprintf is because SUNOS4
 			 * returns a char * instead of an int count.
 			 */
-			sprintf(fmtBuffPtr, "%d", minWidth);
+                        sprintf(fmtBuffPtr, "%lld", (long long)minWidth);
                         fmtBuffPtr += strlen(fmtBuffPtr);
                         p++;
 	            } else {
@@ -542,7 +566,7 @@ int FCGX_VFPrintF(FCGX_Stream *stream, const char *format, va_list arg)
 			 * value returned from sprintf is because SUNOS4
 			 * returns a char * instead of an int count.
 			 */
-			    sprintf(fmtBuffPtr, "%d", precision);
+                            sprintf(fmtBuffPtr, "%lld", (long long)precision);
 			    fmtBuffPtr += strlen(fmtBuffPtr);
                             p++;
 	                } else {
@@ -764,11 +788,13 @@ int FCGX_VFPrintF(FCGX_Stream *stream, const char *format, va_list arg)
                     switch(sizeModifier) {
                         case ' ':
                             intPtrArg = va_arg(arg, int *);
-                            *intPtrArg = streamCount;
+                    ASSERT(INT_MIN <= streamCount && streamCount <= INT_MAX);
+                    *intPtrArg = (int)streamCount;
                             break;
                         case 'l':
                             longPtrArg = va_arg(arg, long *);
-                            *longPtrArg = streamCount;
+                    ASSERT(LONG_MIN <= streamCount && streamCount <= LONG_MAX);
+                    *longPtrArg = (long)streamCount;
                             break;
                         case 'h':
                             shortPtrArg = (short *) va_arg(arg, short *);
@@ -835,7 +861,8 @@ int FCGX_VFPrintF(FCGX_Stream *stream, const char *format, va_list arg)
         } /* for (;;) */
         ASSERT(buffCount < buffLen);
         if(buffCount > 0) {
-            if(FCGX_PutStr(buffPtr, buffCount, stream) < 0)
+            ASSERT(0 <= buffCount && buffCount <= INT_MAX);
+            if(FCGX_PutStr(buffPtr, (int)buffCount, stream) < 0)
                 goto ErrorReturn;
             streamCount += buffCount;
         } else if(buffCount < 0) {
@@ -848,18 +875,19 @@ int FCGX_VFPrintF(FCGX_Stream *stream, const char *format, va_list arg)
     streamCount = -1;
   NormalReturn:
     if(auxBuffPtr != NULL) free(auxBuffPtr);
-    return streamCount;
+    ASSERT(INT_MIN <= streamCount && streamCount <= INT_MAX);
+    return (int)streamCount;
 }
 
 /*
  * Copy n characters from *srcPtr to *destPtr, then increment
  * both *srcPtr and *destPtr by n.
  */
-static void CopyAndAdvance(char **destPtr, char **srcPtr, int n)
+static void CopyAndAdvance(char **destPtr, char **srcPtr, intptr_t n)
 {
     char *dest = *destPtr;
     char *src = *srcPtr;
-    int i;
+    intptr_t i;
     for (i = 0; i < n; i++)
         *dest++ = *src++;
     *destPtr = dest;
@@ -1075,7 +1103,7 @@ static void FreeParams(ParamsPtr *paramsPtrPtr)
  */
 static void PutParam(ParamsPtr paramsPtr, char *nameValue)
 {
-    int size;
+    intptr_t size;
 
     *paramsPtr->cur++ = nameValue;
     size = paramsPtr->cur - paramsPtr->vec;
@@ -1102,7 +1130,7 @@ static void PutParam(ParamsPtr paramsPtr, char *nameValue)
  */
 char *FCGX_GetParam(const char *name, FCGX_ParamArray envp)
 {
-    int len;
+    intptr_t len;
     char **p;
 
 	if (name == NULL || envp == NULL) return NULL;
@@ -1269,8 +1297,8 @@ static FCGI_UnknownTypeBody MakeUnknownTypeBody(
  *
  *----------------------------------------------------------------------
  */
-static int AlignInt8(unsigned n) {
-    return (n + 7) & (UINT_MAX - 7);
+static intptr_t AlignInt8(intptr_t n) {
+    return (n + 7) & ~7;
 }
 
 /*
@@ -1284,9 +1312,7 @@ static int AlignInt8(unsigned n) {
  *----------------------------------------------------------------------
  */
 static unsigned char *AlignPtr8(unsigned char *p) {
-    unsigned long u = (unsigned long) p;
-    u = ((u + 7) & (ULONG_MAX - 7)) - u;
-    return p + u;
+    return (unsigned char *)((((uintptr_t)p) + 7) & ~7);
 }
 
 
@@ -1359,9 +1385,9 @@ static void WriteCloseRecords(struct FCGX_Stream *stream)
 
 
 
-static int write_it_all(int fd, char *buf, int len)
+static intptr_t write_it_all(int fd, char *buf, intptr_t len)
 {
-    int wrote;
+    intptr_t wrote;
 
     while (len) {
         wrote = OS_Write(fd, buf, len);
@@ -1386,7 +1412,7 @@ static int write_it_all(int fd, char *buf, int len)
 static void EmptyBuffProc(struct FCGX_Stream *stream, int doClose)
 {
     FCGX_Stream_Data *data = (FCGX_Stream_Data *)stream->data;
-    int cLen, eLen;
+    intptr_t cLen, eLen;
     /*
      * If the buffer contains stream data, fill in the header.
      * Pad the record to a multiple of 8 bytes in length.  Padding
@@ -1403,9 +1429,11 @@ static void EmptyBuffProc(struct FCGX_Stream *stream, int doClose)
              */
             memset(stream->wrNext, 0, eLen - cLen);
             stream->wrNext += eLen - cLen;
+            ASSERT(0 <= cLen && cLen <= INT_MAX);
+            ASSERT(0 <= eLen - cLen && eLen - cLen <= INT_MAX);
             *((FCGI_Header *) data->buff)
                     = MakeHeader(data->type,
-                            data->reqDataPtr->requestId, cLen, eLen - cLen);
+                             data->reqDataPtr->requestId, (int)cLen, (int)(eLen - cLen));
         } else {
             stream->wrNext = data->buff;
 	}
@@ -1459,7 +1487,7 @@ static int ProcessManagementRecord(int type, FCGX_Stream *stream)
     char response[64]; /* 64 = 8 + 3*(1+1+14+1)* + padding */
     char *responseP = &response[FCGI_HEADER_LEN];
     char *name, value = '\0';
-    int len, paddedLen;
+    intptr_t len, paddedLen;
     if(type == FCGI_GET_VALUES) {
         ReadParams(paramsPtr, stream);
         if((FCGX_GetError(stream) != 0) || (data->contentLen != 0)) {
@@ -1480,21 +1508,24 @@ static int ProcessManagementRecord(int type, FCGX_Stream *stream)
             }
             if(name != NULL) {
                 len = strlen(name);
-                sprintf(responseP, "%c%c%s%c", len, 1, name, value);
+                sprintf(responseP, "%c%c%s%c", (int)len, 1, name, value);
                 responseP += len + 3;
 	    }
         }
         len = responseP - &response[FCGI_HEADER_LEN];
         paddedLen = AlignInt8(len);
+        ASSERT(0 <= len && len <= INT_MAX);
+        ASSERT(0 <= paddedLen - len && paddedLen - len <= INT_MAX);
         *((FCGI_Header *) response)
             = MakeHeader(FCGI_GET_VALUES_RESULT, FCGI_NULL_REQUEST_ID,
-                         len, paddedLen - len);
+                         (int)len, (int)(paddedLen - len));
         FreeParams(&paramsPtr);
     } else {
         paddedLen = len = sizeof(FCGI_UnknownTypeBody);
+        ASSERT(0 <= len && len <= INT_MAX);
         ((FCGI_UnknownTypeRecord *) response)->header
             = MakeHeader(FCGI_UNKNOWN_TYPE, FCGI_NULL_REQUEST_ID,
-                         len, 0);
+                         (int)len, 0);
         ((FCGI_UnknownTypeRecord *) response)->body
             = MakeUnknownTypeBody(type);
     }
@@ -1627,6 +1658,7 @@ static void FillBuffProc(FCGX_Stream *stream)
     FCGI_Header header;
     int headerLen = 0;
     int status, count;
+    intptr_t ptrDiff;
 
     for (;;) {
         /*
@@ -1647,7 +1679,9 @@ static void FillBuffProc(FCGX_Stream *stream)
          * more content bytes, deliver all that are present in data->buff.
          */
         if(data->contentLen > 0) {
-            count = min(data->contentLen, data->buffStop - stream->rdNext);
+            ptrDiff = data->buffStop - stream->rdNext;
+            ASSERT(0 <= ptrDiff && ptrDiff <= INT_MAX);
+            count = min(data->contentLen, (int)ptrDiff);
             data->contentLen -= count;
             if(!data->skip) {
                 stream->wrNext = stream->stop = stream->rdNext + count;
@@ -1666,7 +1700,9 @@ static void FillBuffProc(FCGX_Stream *stream)
          * the client) was padded, skip over the padding bytes.
          */
         if(data->paddingLen > 0) {
-            count = min(data->paddingLen, data->buffStop - stream->rdNext);
+            ptrDiff = data->buffStop - stream->rdNext;
+            ASSERT(0 <= ptrDiff && ptrDiff <= INT_MAX);
+            count = min(data->paddingLen, (int)ptrDiff);
             data->paddingLen -= count;
             stream->rdNext += count;
             if(data->paddingLen > 0) {
@@ -1685,8 +1721,10 @@ static void FillBuffProc(FCGX_Stream *stream)
         /*
          * Fill header with bytes from the input buffer.
          */
+        ptrDiff = data->buffStop - stream->rdNext;
+        ASSERT(0 <= ptrDiff && ptrDiff <= INT_MAX);
         count = min((int)sizeof(header) - headerLen,
-                        data->buffStop - stream->rdNext);
+                    (int)ptrDiff);
         memcpy(((char *)(&header)) + headerLen, stream->rdNext, count);
         headerLen += count;
         stream->rdNext += count;
@@ -1754,6 +1792,7 @@ static void FillBuffProc(FCGX_Stream *stream)
 static FCGX_Stream *NewStream(
         FCGX_Request *reqDataPtr, int bufflen, int isReader, int streamType)
 {
+    intptr_t bufflen_p;
     /*
      * XXX: It would be a lot cleaner to have a NewStream that only
      * knows about the type FCGX_Stream, with all other
@@ -1765,7 +1804,9 @@ static FCGX_Stream *NewStream(
     FCGX_Stream *stream = (FCGX_Stream *)Malloc(sizeof(FCGX_Stream));
     FCGX_Stream_Data *data = (FCGX_Stream_Data *)Malloc(sizeof(FCGX_Stream_Data));
     data->reqDataPtr = reqDataPtr;
-    bufflen = AlignInt8(min(max(bufflen, 32), FCGI_MAX_LENGTH + 1));
+    bufflen_p = AlignInt8(min(max(bufflen, 32), FCGI_MAX_LENGTH + 1));
+    ASSERT(0 <= bufflen_p && bufflen_p <= INT_MAX);
+    bufflen = (int)bufflen_p;
     data->bufflen = bufflen;
     data->mBuff = (unsigned char *)Malloc(bufflen);
     data->buff = AlignPtr8(data->mBuff);
@@ -2306,4 +2347,3 @@ void FCGX_SetExitStatus(int status, FCGX_Stream *stream)
     FCGX_Stream_Data *data = (FCGX_Stream_Data *)stream->data;
     data->reqDataPtr->appStatus = status;
 }
-

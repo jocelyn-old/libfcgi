@@ -40,6 +40,12 @@ extern char ** environ;
 #include "fcgio.h"
 #include "fcgi_config.h"  // HAVE_IOSTREAM_WITHASSIGN_STREAMBUF
 
+#ifdef _WIN32
+#define GETPID _getpid
+#else
+#define GETPID getpid
+#endif
+
 using namespace std;
 
 // Maximum number of bytes allowed to be read from stdin
@@ -55,10 +61,10 @@ static void penv(const char * const * envp)
     cout << "</PRE>\n";
 }
 
-static long gstdin(FCGX_Request * request, char ** content)
+static uintptr_t gstdin(FCGX_Request * request, char ** content)
 {
     char * clenstr = FCGX_GetParam("CONTENT_LENGTH", request->envp);
-    unsigned long clen = STDIN_MAX;
+    uintptr_t clen = STDIN_MAX;
 
     if (clenstr)
     {
@@ -99,7 +105,7 @@ static long gstdin(FCGX_Request * request, char ** content)
 int main (void)
 {
     int count = 0;
-    long pid = getpid();
+    long pid = GETPID();
 
     streambuf * cin_streambuf  = cin.rdbuf();
     streambuf * cout_streambuf = cout.rdbuf();
@@ -133,7 +139,7 @@ int main (void)
         // many http clients (browsers) don't support it (so
         // the connection deadlocks until a timeout expires!).
         char * content;
-        unsigned long clen = gstdin(&request, &content);
+        uintptr_t clen = gstdin(&request, &content);
 
         cout << "Content-type: text/html\r\n"
                 "\r\n"

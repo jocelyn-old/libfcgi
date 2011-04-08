@@ -33,6 +33,8 @@ static const char rcsid[] = "$Id: cgi-fcgi.c,v 1.15 2001/09/01 01:14:28 robs Exp
 #include <io.h>
 #else
 extern char **environ;
+#include <stdint.h>
+#include <limits.h>
 #endif
 
 #ifdef HAVE_SYS_PARAM_H
@@ -52,6 +54,11 @@ extern char **environ;
 #include "fastcgi.h"
 #include "fcgios.h"
 
+#ifdef _WIN32
+#define ACCESS _access
+#else
+#define ACCESS access
+#endif
 
 static int wsReadPending = 0;
 static int fcgiReadPending = 0;
@@ -86,8 +93,11 @@ typedef struct {
 static int GetPtr(char **ptr, int n, Buffer *pBuf)
 {
     int result;
+    intptr_t ptrDiff;
     *ptr = pBuf->next;
-    result = min(n, pBuf->stop - pBuf->next);
+    ptrDiff = pBuf->stop - pBuf->next;
+    ASSERT(0 <= ptrDiff && ptrDiff <= INT_MAX);
+    result = min(n, (int)ptrDiff);
     pBuf->next += result;
     return result;
 }
@@ -220,7 +230,7 @@ static void AppServerReadHandler(ClientData dc, int bytesRead)
     /* Touch unused parameters to avoid warnings */
     dc = NULL;
 
-    assert(fcgiReadPending == TRUE);
+    ASSERT(fcgiReadPending == TRUE);
     fcgiReadPending = FALSE;
     count = bytesRead;
 
@@ -250,7 +260,7 @@ static void AppServerReadHandler(ClientData dc, int bytesRead)
              * First priority is to complete the header.
              */
             count = GetPtr(&ptr, sizeof(header) - headerLen, &fromAS);
-            assert(count > 0);
+            ASSERT(count > 0);
             memcpy(&header + headerLen, ptr, count);
             headerLen += count;
             if(headerLen < sizeof(header)) {
@@ -378,9 +388,9 @@ static void WebServerReadHandler(ClientData dc, int bytesRead)
     /* Touch unused parameters to avoid warnings */
     dc = NULL;
 
-    assert(fromWS.next == fromWS.stop);
-    assert(fromWS.next == &fromWS.buff[0]);
-    assert(wsReadPending == TRUE);
+    ASSERT(fromWS.next == fromWS.stop);
+    ASSERT(fromWS.next == &fromWS.buff[0]);
+    ASSERT(wsReadPending == TRUE);
     wsReadPending = FALSE;
 
     if(bytesRead < 0) {
@@ -412,13 +422,13 @@ static void WebServerReadHandler(ClientData dc, int bytesRead)
 
 static void AppServerWriteHandler(ClientData dc, int bytesWritten)
 {
-    int length = fromWS.stop - fromWS.next;
+    intptr_t length = fromWS.stop - fromWS.next;
 
     /* Touch unused parameters to avoid warnings */
     dc = NULL;
 
-    assert(length > 0);
-    assert(fcgiWritePending == TRUE);
+    ASSERT(length > 0);
+    ASSERT(fcgiWritePending == TRUE);
 
     fcgiWritePending = FALSE;
     if(bytesWritten < 0) {
@@ -449,16 +459,18 @@ static void AppServerWriteHandler(ClientData dc, int bytesWritten)
  */
 static void ScheduleIo(void)
 {
-    int length;
+    intptr_t length;
 
     /*
      * Move data between standard in and the FastCGI connection.
      */
+    length = fromWS.stop - fromWS.next;
     if(!fcgiWritePending && appServerSock != -1 &&
-       ((length = fromWS.stop - fromWS.next) != 0)) {
-	if(OS_AsyncWrite(appServerSock, 0, fromWS.next, length,
+       (length != 0)) {
+        ASSERT(0 <= length && length <= INT_MAX);
+        if(OS_AsyncWrite(appServerSock, 0, fromWS.next, (int)length,
 			 AppServerWriteHandler,
-			 (ClientData)appServerSock) == -1) {
+                         (ClientData)(intptr_t)appServerSock) == -1) {
 	    FCGIexit(OS_Errno);
 	} else {
 	    fcgiWritePending = TRUE;
@@ -474,7 +486,7 @@ static void ScheduleIo(void)
 
 	if(OS_AsyncRead(appServerSock, 0, fromAS.next, BUFFLEN,
 			AppServerReadHandler,
-			(ClientData)appServerSock) == -1) {
+                        (ClientData)(intptr_t)appServerSock) == -1) {
 	    FCGIexit(OS_Errno);
 	} else {
 	    fcgiReadPending = TRUE;
@@ -518,7 +530,7 @@ static void FCGI_Start(char *bindPath, char *appPath, int nServers)
         exit(OS_Errno);
     }
 
-    if(access(appPath, X_OK) == -1) {
+    if(ACCESS(appPath, X_OK) == -1) {
 	fprintf(stderr, "%s is not executable\n", appPath);
 	exit(1);
     }
@@ -556,6 +568,7 @@ static void FCGIUtil_BuildNameValueHeader(
         unsigned char *headerBuffPtr,
         int *headerLenPtr) {
     unsigned char *startHeaderBuffPtr = headerBuffPtr;
+    intptr_t ptrDiff;
 
     ASSERT(nameLen >= 0);
     if (nameLen < 0x80) {
@@ -575,7 +588,9 @@ static void FCGIUtil_BuildNameValueHeader(
         *headerBuffPtr++ = (unsigned char) (valueLen >> 8);
         *headerBuffPtr++ = (unsigned char) valueLen;
     }
-    *headerLenPtr = headerBuffPtr - startHeaderBuffPtr;
+    ptrDiff = headerBuffPtr - startHeaderBuffPtr;
+    ASSERT(0 <= ptrDiff && ptrDiff <= INT_MAX);
+    *headerLenPtr = (int)ptrDiff;
 }
 
 
@@ -639,8 +654,8 @@ static int ParseArgs(int argc, char *argv[],
 				exit(-1);
 			}
 			if((av[ac] = (char *)malloc(strlen(tp1)+1)) == NULL) {
-			    fprintf(stderr, "Cannot allocate %d bytes\n",
-				    strlen(tp1)+1);
+                            fprintf(stderr, "Cannot allocate %llu bytes\n",
+                                    (unsigned long long)strlen(tp1)+1);
 			    exit(-1);
 			}
 			strcpy(av[ac++], tp1);
@@ -658,7 +673,7 @@ static int ParseArgs(int argc, char *argv[],
 	    } else if (!strcmp(argv[i], "-jitcgi")) {
 	        DebugBreak();
 	    } else if (!strcmp(argv[i], "-dbgfcgi")) {
-	        putenv("DEBUG_FCGI=TRUE");
+                _putenv("DEBUG_FCGI=TRUE");
 #endif
 	    } else if(!strcmp(argv[i], "-start")) {
 		*doBindPtr = FALSE;
@@ -724,11 +739,13 @@ int main(int argc, char **argv)
     FCGX_Stream *paramsStream;
     int numFDs;
     unsigned char headerBuff[8];
-    int headerLen, valueLen;
+    int headerLen;
+    intptr_t valueLen;
     char *equalPtr;
     FCGI_BeginRequestRecord beginRecord;
     int	doBind, doStart, nServers;
     char appPath[MAXPATHLEN], bindPath[MAXPATHLEN];
+    intptr_t ptrDiff;
 
     if(ParseArgs(argc, argv, &doBind, &doStart,
 		   (char *) &bindPath, (char *) &appPath, &nServers)) {
@@ -803,14 +820,17 @@ int main(int argc, char **argv)
             exit(1000);
         }
         valueLen = strlen(equalPtr + 1);
+        ASSERT(0 <= valueLen && valueLen <= INT_MAX);
+        ptrDiff = equalPtr - *envp;
+        ASSERT(0 <= ptrDiff && ptrDiff < INT_MAX);
         FCGIUtil_BuildNameValueHeader(
-                equalPtr - *envp,
-                valueLen,
+            (int)ptrDiff,
+            (int)valueLen,
                 &headerBuff[0],
                 &headerLen);
         if(FCGX_PutStr((char *) &headerBuff[0], headerLen, paramsStream) < 0
-                || FCGX_PutStr(*envp, equalPtr - *envp, paramsStream) < 0
-                || FCGX_PutStr(equalPtr + 1, valueLen, paramsStream) < 0) {
+           || FCGX_PutStr(*envp, (int)ptrDiff, paramsStream) < 0
+           || FCGX_PutStr(equalPtr + 1, (int)valueLen, paramsStream) < 0) {
             exit(FCGX_GetError(paramsStream));
         }
     }

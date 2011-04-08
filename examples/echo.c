@@ -28,6 +28,12 @@ static const char rcsid[] = "$Id: echo.c,v 1.5 1999/07/28 00:29:37 roberts Exp $
 extern char **environ;
 #endif
 
+#ifdef _WIN32
+#define GETPID _getpid
+#else
+#define GETPID getpid
+#endif
+
 #include "fcgi_stdio.h"
 
 
@@ -53,7 +59,7 @@ int main ()
 	    "\r\n"
 	    "<title>FastCGI echo</title>"
 	    "<h1>FastCGI echo</h1>\n"
-            "Request number %d,  Process ID: %d<p>\n", ++count, getpid());
+               "Request number %d,  Process ID: %d<p>\n", ++count, GETPID());
 
         if (contentLength != NULL) {
             len = strtol(contentLength, NULL, 10);

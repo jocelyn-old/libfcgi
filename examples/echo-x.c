@@ -28,6 +28,12 @@ static const char rcsid[] = "$Id: echo-x.c,v 1.1 2001/06/19 15:06:17 robs Exp $"
 extern char **environ;
 #endif
 
+#ifdef _WIN32
+#define GETPID _getpid
+#else
+#define GETPID getpid
+#endif
+
 #include "fcgiapp.h"
 
 static void PrintEnv(FCGX_Stream *out, char *label, char **envp)
@@ -54,7 +60,7 @@ int main ()
            "\r\n"
            "<title>FastCGI echo (fcgiapp version)</title>"
            "<h1>FastCGI echo (fcgiapp version)</h1>\n"
-           "Request number %d,  Process ID: %d<p>\n", ++count, getpid());
+                     "Request number %d,  Process ID: %d<p>\n", ++count, GETPID());
 
         if (contentLength != NULL)
             len = strtol(contentLength, NULL, 10);
