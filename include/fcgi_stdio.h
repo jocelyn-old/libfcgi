@@ -45,6 +45,7 @@ typedef struct {
  */
 
 DLLAPI int FCGI_Accept(void);
+DLLAPI char** FCGI_Environ(void);
 DLLAPI void FCGI_Finish(void);
 DLLAPI int FCGI_StartFilterData(void);
 DLLAPI void FCGI_SetExitStatus(int status);

@@ -159,6 +159,22 @@ int FCGI_Accept(void)
 /*
  *----------------------------------------------------------------------
  *
+ * FCGI_Environ --
+ *
+ *      Return the (char**) environ variable
+ *      since there are issue related to UNICODE ...
+ *
+ *----------------------------------------------------------------------
+ */
+
+char** FCGI_Environ(void)
+{
+	return (char**) environ;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
  * FCGI_Finish --
  *
  *      Finishes the current request from the HTTP server.
