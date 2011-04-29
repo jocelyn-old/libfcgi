@@ -271,6 +271,7 @@
       </DataExecutionPrevention>
       <ImportLibrary>.\..\libfcgi\Release/libfcgi.lib</ImportLibrary>
       <TargetMachine>MachineX64</TargetMachine>
+      <AdditionalLibraryDirectories>C:\apps\MS\SDK\Windows\v7.1\Lib\X64</AdditionalLibraryDirectories>
     </Link>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
